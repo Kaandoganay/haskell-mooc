@@ -28,7 +28,7 @@ import Data.List
 --  maxBy head   [1,2,3] [4,5]  ==>  [4,5]
 
 maxBy :: (a -> Int) -> a -> a -> a
-maxBy measure a b = todo
+maxBy measure a b = if measure a >= measure b then a else b
 
 ------------------------------------------------------------------------------
 -- Ex 2: implement the function mapMaybe that takes a function and a
@@ -40,7 +40,8 @@ maxBy measure a b = todo
 --   mapMaybe length (Just "abc") ==> Just 3
 
 mapMaybe :: (a -> b) -> Maybe a -> Maybe b
-mapMaybe f x = todo
+mapMaybe _ Nothing = Nothing
+mapMaybe f (Just x) = Just (f x)
 
 ------------------------------------------------------------------------------
 -- Ex 3: implement the function mapMaybe2 that works like mapMaybe
@@ -54,7 +55,9 @@ mapMaybe f x = todo
 --   mapMaybe2 div (Just 6) Nothing   ==>  Nothing
 
 mapMaybe2 :: (a -> b -> c) -> Maybe a -> Maybe b -> Maybe c
-mapMaybe2 f x y = todo
+mapMaybe2 _ Nothing _ = Nothing
+mapMaybe2 _ _ Nothing = Nothing
+mapMaybe2 f (Just x) (Just y) = Just (f x y)
 
 ------------------------------------------------------------------------------
 -- Ex 4: define the functions firstHalf and palindrome so that
@@ -76,9 +79,12 @@ mapMaybe2 f x y = todo
 palindromeHalfs :: [String] -> [String]
 palindromeHalfs xs = map firstHalf (filter palindrome xs)
 
-firstHalf = todo
+firstHalf :: [a] -> [a]
+firstHalf xs | even (length xs) = take (length xs `div` 2) xs
+             | otherwise = take ((length xs `div` 2)+1) xs
 
-palindrome = todo
+palindrome :: Eq a => [a] -> Bool
+palindrome xs = reverse xs == xs
 
 ------------------------------------------------------------------------------
 -- Ex 5: Implement a function capitalize that takes in a string and
@@ -95,9 +101,12 @@ palindrome = todo
 -- Example:
 --   capitalize "goodbye cruel world" ==> "Goodbye Cruel World"
 
-capitalize :: String -> String
-capitalize = todo
 
+capitalize :: String -> String
+capitalize xs = unwords (map capitalizeFirst (words xs ) )
+
+capitalizeFirst :: String -> String
+capitalizeFirst xs = map toUpper (take 1 xs) ++ tail xs
 ------------------------------------------------------------------------------
 -- Ex 6: powers k max should return all the powers of k that are less
 -- than or equal to max. For example:
@@ -113,7 +122,7 @@ capitalize = todo
 --   * the function takeWhile
 
 powers :: Int -> Int -> [Int]
-powers k max = todo
+powers k max = takeWhile (<= max) (map (k^) [0..])
 
 ------------------------------------------------------------------------------
 -- Ex 7: implement a functional while loop. While should be a function
@@ -136,7 +145,7 @@ powers k max = todo
 --     ==> Avvt
 
 while :: (a->Bool) -> (a->a) -> a -> a
-while check update value = todo
+while check update value = head (dropWhile check (iterate update value))
 
 ------------------------------------------------------------------------------
 -- Ex 8: another version of a while loop. This time, the check
@@ -156,8 +165,10 @@ while check update value = todo
 -- Hint! Remember the case-of expression from lecture 2.
 
 whileRight :: (a -> Either b a) -> a -> b
-whileRight check x = todo
-
+whileRight check x = case  check x of
+                            Left a -> a
+                            Right b -> whileRight check b
+                            
 -- for the whileRight examples:
 -- step k x doubles x if it's less than k
 step :: Int -> Int -> Either Int Int
@@ -180,7 +191,7 @@ bomb x = Right (x-1)
 -- Hint! This is a great use for list comprehensions
 
 joinToLength :: Int -> [String] -> [String]
-joinToLength = todo
+joinToLength n xss =[ xs ++ ys | xs <- xss, ys <- xss , length xs + length ys == n]
 
 ------------------------------------------------------------------------------
 -- Ex 10: implement the operator +|+ that returns a list with the first
@@ -193,6 +204,9 @@ joinToLength = todo
 --   [1,2,3] +|+ [4,5,6]  ==> [1,4]
 --   [] +|+ [True]        ==> [True]
 --   [] +|+ []            ==> []
+
+(+|+) :: [a] -> [a] -> [a]
+(+|+) xs ys = take 1 xs ++ take 1 ys
 
 
 ------------------------------------------------------------------------------
@@ -210,7 +224,7 @@ joinToLength = todo
 --   sumRights [Left "bad!", Left "missing"]         ==>  0
 
 sumRights :: [Either a Int] -> Int
-sumRights = todo
+sumRights xs = sum (rights xs)
 
 ------------------------------------------------------------------------------
 -- Ex 12: recall the binary function composition operation
@@ -226,7 +240,9 @@ sumRights = todo
 --   multiCompose [(3*), (2^), (+1)] 0 ==> 6
 --   multiCompose [(+1), (2^), (3*)] 0 ==> 2
 
-multiCompose fs = todo
+multiCompose :: [t -> t] -> t -> t
+multiCompose [] a = a
+multiCompose xs a = multiCompose (init xs) (last xs a )
 
 ------------------------------------------------------------------------------
 -- Ex 13: let's consider another way to compose multiple functions. Given
@@ -247,7 +263,13 @@ multiCompose fs = todo
 --   multiApp id [head, (!!2), last] "axbxc" ==> ['a','b','c'] i.e. "abc"
 --   multiApp sum [head, (!!2), last] [1,9,2,9,3] ==> 6
 
-multiApp = todo
+
+appl :: [t -> a] -> t -> [a]
+appl [] a = []
+appl xs a = head xs a : appl (tail xs) a
+
+multiApp :: ([a] -> t1) -> [t2 -> a] -> t2 -> t1
+multiApp f xs a = f (appl xs a )
 
 ------------------------------------------------------------------------------
 -- Ex 14: in this exercise you get to implement an interpreter for a
@@ -282,4 +304,13 @@ multiApp = todo
 -- function, the surprise won't work. See section 3.8 in the material.
 
 interpreter :: [String] -> [String]
-interpreter commands = todo
+interpreter commands = interpreter' commands 0 0 []
+
+interpreter' :: (Num a1, Num a2, Show a2, Show a1) => [String] -> a2 -> a1 -> [String] -> [String]
+interpreter' [] _ _ output = output
+interpreter'("up":rest) x y output = interpreter' rest x (y+1) output
+interpreter' ("down":rest) x y output = interpreter' rest x (y-1) output
+interpreter' ("left":rest) x y output = interpreter' rest (x-1) y output
+interpreter' ("right":rest) x y output = interpreter' rest (x+1) y output
+interpreter' ("printX":rest) x y output = interpreter' rest x y (output ++ [show x])
+interpreter'("printY":rest) x y output = interpreter' rest x y (output ++ [show y])
