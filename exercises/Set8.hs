@@ -1,3 +1,4 @@
+{-# LANGUAGE InstanceSigs #-}
 module Set8 where
 
 import Data.Char (intToDigit)
@@ -13,6 +14,7 @@ import Mooc.Todo
 -- We'll use the JuicyPixels library to generate images. The library
 -- exposes the Codec.Picture module that has everything we need.
 import Codec.Picture
+import Data.ByteString (hPut)
 
 -- Let's start by defining Colors and Pictures.
 
@@ -64,7 +66,7 @@ justADot = Picture f
 
 -- Here's a picture that's just a solid color
 solid :: Color -> Picture
-solid color = Picture (\coord -> color)
+solid color = Picture (const color)
 
 -- Here's a simple picture:
 examplePicture1 = Picture f
@@ -133,7 +135,11 @@ renderListExample = renderList justADot (9,11) (9,11)
 --      ["000000","000000","000000"]]
 
 dotAndLine :: Picture
-dotAndLine = todo
+dotAndLine = Picture f
+     where
+      f (Coord 3 4) = white
+      f (Coord _ 8) = pink
+      f (Coord _ _) = black
 ------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------
@@ -166,16 +172,16 @@ dotAndLine = todo
 --          ["7f0000","7f0000","7f0000"]]
 
 blendColor :: Color -> Color -> Color
-blendColor = todo
+blendColor (Color x y z) (Color a b c )= Color ((x+a) `div` 2) ((y+b) `div` 2) ((z+c) `div` 2)
 
 combine :: (Color -> Color -> Color) -> Picture -> Picture -> Picture
-combine = todo
+combine f (Picture g) (Picture h)= Picture (\a -> f (g a) (h a))
 
 ------------------------------------------------------------------------------
 
 -- Let's define blend, we'll use it later
 blend :: Picture -> Picture -> Picture
-blend = combine blendColor
+blend p1 p2 = combine blendColor p1 p2
 
 -- In order to draw some more interesting stuff, let's define the
 -- notion of a Shape. A Shape is just a function that takes in
@@ -240,8 +246,9 @@ exampleCircle = fill red (circle 80 100 200)
 --        ["000000","000000","000000","000000","000000","000000"]]
 
 rectangle :: Int -> Int -> Int -> Int -> Shape
-rectangle x0 y0 w h = todo
-------------------------------------------------------------------------------
+rectangle x0 y0 w h = Shape f
+     where f (Coord x y) = (x >= x0 && x < x0 + w) && (y >= y0 && y < y0 + h)
+  ------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------
 -- Ex 4: combining shapes.
@@ -256,10 +263,10 @@ rectangle x0 y0 w h = todo
 -- shape.
 
 union :: Shape -> Shape -> Shape
-union = todo
+union (Shape f) (Shape g)= Shape (\x -> f x || g x)
 
 cut :: Shape -> Shape -> Shape
-cut = todo
+cut (Shape f) (Shape g) = Shape (\x -> f x && (not $ g x))
 ------------------------------------------------------------------------------
 
 -- Here's a snowman, built using union from circles and rectangles.
@@ -287,7 +294,8 @@ exampleSnowman = fill white snowman
 --        ["000000","000000","000000"]]
 
 paintSolid :: Color -> Shape -> Picture -> Picture
-paintSolid color shape base = todo
+paintSolid color (Shape f) (Picture g) = Picture h
+   where h x = if f x then color else g x
 ------------------------------------------------------------------------------
 
 allWhite :: Picture
@@ -332,7 +340,8 @@ stripes a b = Picture f
 --       ["000000","000000","000000","000000","000000"]]
 
 paint :: Picture -> Shape -> Picture -> Picture
-paint pat shape base = todo
+paint (Picture f) (Shape g) (Picture h) = Picture t
+    where t x = if g x then f x else h x
 ------------------------------------------------------------------------------
 
 -- Here's a patterned version of the snowman example. See it by running:
@@ -348,7 +357,7 @@ examplePatterns = (paint (solid black) hat . paint (stripes red yellow) legs . p
 -- Let's implement zooming and flipping images.
 
 flipCoordXY :: Coord -> Coord
-flipCoordXY (Coord x y) = (Coord y x)
+flipCoordXY (Coord x y) = Coord y x
 
 -- Flip a picture by switching x and y coordinates
 flipXY :: Picture -> Picture
@@ -395,19 +404,24 @@ xy = Picture f
 data Fill = Fill Color
 
 instance Transform Fill where
-  apply = todo
+  apply :: Fill -> Picture -> Picture
+  apply (Fill color) _ = Picture (const color)
 
 data Zoom = Zoom Int
   deriving Show
 
 instance Transform Zoom where
-  apply = todo
+  apply :: Zoom -> Picture -> Picture
+  apply (Zoom x) y = zoom x y
 
 data Flip = FlipX | FlipY | FlipXY
   deriving Show
 
 instance Transform Flip where
-  apply = todo
+  apply :: Flip -> Picture -> Picture
+  apply FlipX (Picture f) = Picture (\(Coord x y) -> f (Coord (-x) y))
+  apply FlipY (Picture f) = Picture (\(Coord x y) -> f (Coord x (-y)))
+  apply FlipXY a          = flipXY a
 ------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------
@@ -422,8 +436,8 @@ instance Transform Flip where
 data Chain a b = Chain a b
   deriving Show
 
-instance Transform (Chain a b) where
-  apply = todo
+instance (Transform a, Transform b) => Transform (Chain a b) where
+  apply (Chain a b)= apply a . apply b
 ------------------------------------------------------------------------------
 
 -- Now we can redefine largeVerticalStripes using the above Transforms.
@@ -460,8 +474,23 @@ checkered = flipBlend largeVerticalStripes2
 data Blur = Blur
   deriving Show
 
+blendRed :: [Color] -> Int
+blendRed xs = div (sum $ map getRed xs) 5
+blendGreen :: [Color] -> Int
+blendGreen xs = div (sum $ map getGreen xs) 5
+blendBlue :: [Color] -> Int
+blendBlue xs = div (sum $ map getBlue xs) 5
+ 
+
+blendM :: [Color] -> Color
+blendM xs = Color (blendRed xs) (blendGreen xs) (blendBlue xs)
+
 instance Transform Blur where
-  apply = todo
+  apply :: Blur -> Picture -> Picture
+  apply Blur (Picture f) = Picture ff
+    where
+      ff (Coord x y) = blendM (map (\(x, y) -> f (Coord x y)) [(x, y), (x - 1, y), (x, y - 1), (x + 1, y), (x, y + 1)])
+      
 ------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------
@@ -479,11 +508,15 @@ data BlurMany = BlurMany Int
   deriving Show
 
 instance Transform BlurMany where
-  apply = todo
+ apply :: BlurMany -> Picture -> Picture
+ apply (BlurMany 0) x = x
+ apply (BlurMany n) x = apply (BlurMany (n - 1)) (apply Blur x)
+
 ------------------------------------------------------------------------------
 
 -- Here's a blurred version of our original snowman. See it by running
 --   render blurredSnowman 400 300 "blurred.png"
 
+blurredSnowman :: Picture
 blurredSnowman = apply (BlurMany 2) exampleSnowman
 
