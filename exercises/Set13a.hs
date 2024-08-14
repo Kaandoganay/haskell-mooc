@@ -281,7 +281,6 @@ count x = modify (inc x)
     inc x ((y, v) : xs)
       | x == y = (x, v + 1) : xs
       | otherwise = (y, v) : inc x xs
-
 ------------------------------------------------------------------------------
 -- Ex 10: Implement the operation occurrences, which
 --   1. runs the count operation on each element in the input list
