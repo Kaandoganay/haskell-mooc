@@ -76,12 +76,15 @@ getAllQuery = Query (T.pack "SELECT account, amount FROM events;")
 -- NOTE! Do not add anything to the name, otherwise you'll get weird
 -- test failures later.
 openDatabase :: String -> IO Connection
-openDatabase = todo
+openDatabase file = do
+  db <- open file
+  execute_ db initQuery
+  return db
 
 -- given a db connection, an account name, and an amount, deposit
 -- should add an (account, amount) row into the database
 deposit :: Connection -> T.Text -> Int -> IO ()
-deposit = todo
+deposit db t x = execute db depositQuery (T.unpack t, x)
 
 ------------------------------------------------------------------------------
 -- Ex 2: Fetching an account's balance. Below you'll find
@@ -112,7 +115,9 @@ balanceQuery :: Query
 balanceQuery = Query (T.pack "SELECT amount FROM events WHERE account = ?;")
 
 balance :: Connection -> T.Text -> IO Int
-balance = todo
+balance db account= do
+  res <- query db balanceQuery [account] :: IO [[Int]]
+  return . sum . concat $ res
 
 ------------------------------------------------------------------------------
 -- Ex 3: Now that we have the database part covered, let's think about
@@ -151,8 +156,11 @@ parseInt :: T.Text -> Maybe Int
 parseInt = readMaybe . T.unpack
 
 parseCommand :: [T.Text] -> Maybe Command
-parseCommand = todo
-
+parseCommand (command : account : params) = case (T.unpack command, params) of
+  ("balance", []) -> Just (Balance account)
+  ("deposit", [amount]) -> fmap (Deposit account) (parseInt amount)
+  (_, _) -> Nothing
+parseCommand _ = Nothing
 ------------------------------------------------------------------------------
 -- Ex 4: Running commands. Implement the IO operation perform that takes a
 -- database Connection, the result of parseCommand (a Maybe Command),
@@ -177,7 +185,13 @@ parseCommand = todo
 --   "0"
 
 perform :: Connection -> Maybe Command -> IO T.Text
-perform = todo
+perform db command = case command of
+  Just (Balance account) -> fmap (T.pack . show) (balance db account)
+  Just (Deposit account amount) -> deposit db account amount >> return ok
+  Nothing -> return error
+  where
+    ok = T.pack "OK"
+    error = T.pack "ERROR"
 
 ------------------------------------------------------------------------------
 -- Ex 5: Next up, let's set up a simple HTTP server. Implement a WAI
@@ -197,8 +211,7 @@ encodeResponse t = LB.fromStrict (encodeUtf8 t)
 -- Remember:
 -- type Application = Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived
 simpleServer :: Application
-simpleServer request respond = todo
-
+simpleServer request respond = respond (responseLBS status200 [] (encodeResponse $ T.pack "BANK"))
 ------------------------------------------------------------------------------
 -- Ex 6: Now we finally have all the pieces we need to actually
 -- implement our API. Implement a WAI Application called server that
