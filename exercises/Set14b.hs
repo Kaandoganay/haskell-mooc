@@ -117,7 +117,7 @@ balanceQuery = Query (T.pack "SELECT amount FROM events WHERE account = ?;")
 balance :: Connection -> T.Text -> IO Int
 balance db account = do
   res <- query db balanceQuery [account] :: IO [[Int]]
-  return . sum . concat $ res
+  return $ sum $ concat $ res
 
 ------------------------------------------------------------------------------
 -- Ex 3: Now that we have the database part covered, let's think about
