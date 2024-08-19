@@ -5,6 +5,7 @@ module Set9b where
 import Mooc.Todo
 
 import Data.List
+import Control.Monad.Trans.Cont (cont)
 
 --------------------------------------------------------------------------------
 -- Ex 1: In this exercise set, we'll solve the N Queens problem step by step.
@@ -105,7 +106,7 @@ nextCol (i,j) = (i,j+1)
 type Size = Int
 
 prettyPrint :: Size -> [Coord] -> String
-prettyPrint = todo
+prettyPrint n xs = concat [ a ++ b | x <- [1 .. n],  y <- [1 .. n],  let b = if y == n then "\n" else "", let a = if (x, y) `elem` xs then "Q" else "."]
 
 --------------------------------------------------------------------------------
 -- Ex 3: The task in this exercise is to define the relations sameRow, sameCol,
@@ -193,7 +194,7 @@ type Candidate = Coord
 type Stack     = [Coord]
 
 danger :: Candidate -> Stack -> Bool
-danger = todo
+danger x = any ((==True) . (\a -> sameCol x a || sameRow x a || sameDiag x a || sameAntidiag x a))
 
 --------------------------------------------------------------------------------
 -- Ex 5: In this exercise, the task is to write a modified version of
@@ -228,7 +229,10 @@ danger = todo
 -- solution to this version. Any working solution is okay in this exercise.)
 
 prettyPrint2 :: Size -> Stack -> String
-prettyPrint2 = todo
+prettyPrint2 n ns = concat [a (x,y) ++ b | x <- [1 .. n],y <- [1 .. n],let b= if y == n then "\n" else ""]
+ where a (x,y) | (x,y) `elem` ns = "Q"
+               | danger (x,y) ns = "#"
+               | otherwise = "."
 
 --------------------------------------------------------------------------------
 -- Ex 6: Now that we can check if a piece can be safely placed into a square in
@@ -273,7 +277,10 @@ prettyPrint2 = todo
 --     Q#######
 
 fixFirst :: Size -> Stack -> Maybe Stack
-fixFirst n s = todo
+fixFirst _ [] = Nothing
+fixFirst n ((x,y):xs) | x > n || y > n = Nothing
+                      | danger (x,y) xs = fixFirst n (nextCol (x,y):xs)
+                      | otherwise = Just ((x,y):xs)  
 
 --------------------------------------------------------------------------------
 -- Ex 7: We need two helper functions for stack management.
@@ -295,10 +302,10 @@ fixFirst n s = todo
 -- Hint: Remember nextRow and nextCol? Use them!
 
 continue :: Stack -> Stack
-continue s = todo
+continue xs= nextRow (head xs) : xs
 
 backtrack :: Stack -> Stack
-backtrack s = todo
+backtrack xs = nextCol (xs!!1) : drop 2 xs
 
 --------------------------------------------------------------------------------
 -- Ex 8: Let's take a step. Our algorithm solves the problem (in a
@@ -367,7 +374,9 @@ backtrack s = todo
 --     step 8 [(6,1),(5,4),(4,2),(3,5),(2,3),(1,1)] ==> [(5,5),(4,2),(3,5),(2,3),(1,1)]
 
 step :: Size -> Stack -> Stack
-step = todo
+step n xs = case fixFirst n xs of
+  Just y -> continue y
+  Nothing -> backtrack xs
 
 --------------------------------------------------------------------------------
 -- Ex 9: Let's solve our puzzle! The function finish takes a partial
@@ -382,7 +391,8 @@ step = todo
 -- solve the n queens problem.
 
 finish :: Size -> Stack -> Stack
-finish = todo
+finish n (x : xs)| length xs == n = xs
+                 | otherwise = finish n $ step n (x : xs)
 
 solve :: Size -> Stack
 solve n = finish n [(1,1)]
